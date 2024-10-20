@@ -70,6 +70,7 @@ export interface LLMConfig {
   model: string;
   max_tokens: number;
   temperature: number;
+  max_completion_tokens?: number;
   frequency_penalty: number;
   presence_penalty: number;
   llmPredict: boolean;

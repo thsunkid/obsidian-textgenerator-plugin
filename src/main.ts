@@ -104,7 +104,6 @@ export default class TextGeneratorPlugin extends Plugin {
     // "open template as tool" view
     this.registerView(VIEW_TOOL_ID, (leaf) => new ToolView(leaf, this));
 
-
     // register events such as right click
     if (this.settings.options["generate-in-right-click-menu"])
       this.registerEvent(
@@ -164,8 +163,6 @@ export default class TextGeneratorPlugin extends Plugin {
         )
       );
 
-
-
     // tg codeblock
     if (this.settings.options["tg-block-processor"]) {
       new TGBlock(this);
@@ -198,7 +195,7 @@ export default class TextGeneratorPlugin extends Plugin {
           new PackageManagerUI(
             this.app,
             this,
-            async (result: string) => { }
+            async (result: string) => {}
           ).open();
         }
       );
@@ -207,7 +204,6 @@ export default class TextGeneratorPlugin extends Plugin {
     this.pluginAPIService = new PluginServiceAPI(this);
 
     registerAPI("tg", this.pluginAPIService, this as any);
-
 
     this.app.workspace.onLayoutReady(async () => {
       try {
@@ -252,8 +248,6 @@ export default class TextGeneratorPlugin extends Plugin {
         } catch (err: any) {
           console.trace("[TG:Error] in Loading a Service", err);
         }
-
-
       } catch (err: any) {
         this.handelError(err);
       }
@@ -269,7 +263,6 @@ export default class TextGeneratorPlugin extends Plugin {
     });
   }
 
-
   async addStatusBar() {
     // add status bar items
     this.textGeneratorIconItem = this.addStatusBarItem();
@@ -283,7 +276,6 @@ export default class TextGeneratorPlugin extends Plugin {
   }
 
   async onunload() {
-
     this.app.workspace.detachLeavesOfType(VIEW_TOOL_ID);
     this.app.workspace.detachLeavesOfType(VIEW_Playground_ID);
     await this.textGenerator.unload();
@@ -389,7 +381,7 @@ export default class TextGeneratorPlugin extends Plugin {
       this.statusBarTokens.addClass("mod-clickable");
       const statusBarTokens = this.statusBarTokens.createEl("span");
       statusBarTokens.textContent = `${numberToKFormat(
-        this.settings.max_tokens
+        this.settings.max_completion_tokens || this.settings.max_tokens
       )}`;
       statusBarTokens.title = "Max Tokens for Output";
       statusBarTokens.addClass("mod-clickable");
@@ -397,7 +389,8 @@ export default class TextGeneratorPlugin extends Plugin {
         new SetMaxTokens(
           this.app,
           this,
-          this.settings.max_tokens.toString(),
+          this.settings.max_completion_tokens?.toString() ||
+            this.settings.max_tokens?.toString(),
           async (result: string) => {
             this.settings.max_tokens = parseInt(result);
             await this.saveSettings();

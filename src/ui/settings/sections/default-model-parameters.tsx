@@ -48,12 +48,33 @@ export default function DMPSetting(props: { register: Register }) {
       >
         <Input
           type="number"
-          value={global.plugin.settings.max_tokens}
+          value={global.plugin.settings.max_tokens ?? ""}
           placeholder="max_tokens"
           validator={MaxTokensSchema}
           setValue={async (val) => {
             // @ts-ignore
-            global.plugin.settings.max_tokens = parseInt(val) || val;
+            global.plugin.settings.max_tokens =
+              val === "" ? undefined : parseInt(val);
+            await global.plugin.saveSettings();
+            global.triggerReload();
+          }}
+        />
+      </SettingItem>
+
+      <SettingItem
+        name="Max completion tokens"
+        description="The maximum number of tokens to generate in the completion. Similar to max tokens, but specific to the completion part."
+        register={props.register}
+        sectionId={sectionId}
+      >
+        <Input
+          type="number"
+          value={global.plugin.settings.max_completion_tokens ?? ""}
+          placeholder="max_completion_tokens"
+          validator={MaxTokensSchema.optional()}
+          setValue={async (val) => {
+            global.plugin.settings.max_completion_tokens =
+              val === "" ? undefined : parseInt(val);
             await global.plugin.saveSettings();
             global.triggerReload();
           }}

@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: TextGeneratorSettings = {
   encrypt_keys: false,
   selectedProvider: "OpenAI Chat (Langchain)",
   max_tokens: 500,
+  max_completion_tokens: 20000,
   temperature: 0.7,
   frequency_penalty: 0.5,
   showStatusBar: true,

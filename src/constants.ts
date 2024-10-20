@@ -10,6 +10,7 @@ export const IGNORE_IN_YAML: Record<string, true> = {
   system: true,
   messages: true,
   max_tokens: true,
+  max_completion_tokens: true,
   stream: true,
   provider: true,
   disableProvider: true,

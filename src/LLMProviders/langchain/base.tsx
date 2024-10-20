@@ -16,20 +16,15 @@ import LLMProviderInterface, { LLMConfig } from "../interface";
 import { PromptTemplate } from "@langchain/core/prompts";
 import type { BaseMessageChunk } from "@langchain/core/messages";
 
-import {
-  chains,
-  splitters,
-  Message,
-  AI_MODELS,
-} from "../refs";
+import { chains, splitters, Message, AI_MODELS } from "../refs";
 import { Callbacks } from "@langchain/core/callbacks/manager";
 
 const logger = debug("textgenerator:LangchainProvider");
 
-
 export default class LangchainProvider
   extends BaseProvider
-  implements LLMProviderInterface {
+  implements LLMProviderInterface
+{
   static id = "default (Langchain)";
   static slug = "default" as any;
   static provider = "Langchain";
@@ -59,8 +54,16 @@ export default class LangchainProvider
       // ------------Necessary stuff--------------
       modelKwargs: options.modelKwargs,
       modelName: options.model,
-      maxTokens: +options.max_tokens,
-      temperature: +options.temperature,
+      ...(!options.model.startsWith("o1-") && {
+        maxTokens: +options.max_tokens,
+      }),
+      ...(!options.model.startsWith("o1-") &&
+        options.max_completion_tokens !== undefined && {
+          maxCompletionTokens: +options.max_completion_tokens,
+        }),
+      ...(!options.model.startsWith("o1-") && {
+        temperature: +options.temperature,
+      }),
       frequencyPenalty: +options.frequency_penalty || 0,
       presencePenalty: +options.presence_penalty || 0,
       n: options.n || 1,
@@ -84,21 +87,17 @@ export default class LangchainProvider
       ...this.defaultHeaders,
     };
 
-
     const Fetch = this.plugin.textGenerator.proxyService.getFetch(
       this.corsBypass ||
-      this.default_values.corsBypass ||
-      options.otherOptions.corsBypass
-    )
-
+        this.default_values.corsBypass ||
+        options.otherOptions.corsBypass
+    );
 
     const baseURL = options.basePath?.length
       ? options.basePath.endsWith("/")
         ? options.basePath.substring(0, options.basePath.length - 1)
         : options.basePath
       : undefined;
-
-
 
     const clientOptions: ClientOptions & OpenAIChatInput = {
       baseURL,
@@ -114,14 +113,17 @@ export default class LangchainProvider
       defaultQuery: options.bodyParams,
       fetch: Fetch,
       defaultHeaders: headers,
-    }
+    };
 
-    console.log({ clientOptions })
-    const llm = new (this.llmClass as typeof ChatOpenAI)({
-      ...this.getConfig(options),
-      // @ts-ignore
+    console.log({ clientOptions });
+    const llm = new (this.llmClass as typeof ChatOpenAI)(
+      {
+        ...this.getConfig(options),
+        // @ts-ignore
+        clientOptions,
+      },
       clientOptions
-    }, clientOptions);
+    );
 
     // @ts-ignore
     llm.clientOptions ??= {};
@@ -136,14 +138,14 @@ export default class LangchainProvider
       ...this.cleanConfig(this.plugin.settings),
       ...this.cleanConfig(
         this.plugin.settings.LLMProviderOptions[
-        this.id as keyof typeof this.plugin.settings
+          this.id as keyof typeof this.plugin.settings
         ]
       ),
       ...this.cleanConfig(options.otherOptions),
       ...this.cleanConfig(options),
       otherOptions: this.cleanConfig(
         this.plugin.settings.LLMProviderOptions[
-        this.id as keyof typeof this.plugin.settings
+          this.id as keyof typeof this.plugin.settings
         ]
       ),
     };
@@ -173,7 +175,7 @@ export default class LangchainProvider
         // if the model is streamable
         params.stream = params.stream && this.streamable;
 
-        const llm = (await this.getLLM(params));
+        const llm = await this.getLLM(params);
 
         let first = true;
         let allText = "";
@@ -182,15 +184,15 @@ export default class LangchainProvider
           {
             ...(!!onToken &&
               !!params.stream && {
-              async handleLLMNewToken(token: string) {
-                const d = first;
-                first = false;
-                alreadyBegainGenerating = true;
-                const tk = (await onToken(token, d)) || token;
-                allText += tk;
-                result += tk;
-              },
-            }),
+                async handleLLMNewToken(token: string) {
+                  const d = first;
+                  first = false;
+                  alreadyBegainGenerating = true;
+                  const tk = (await onToken(token, d)) || token;
+                  allText += tk;
+                  result += tk;
+                },
+              }),
 
             handleLLMEnd() {
               if (params.stream) s(allText);
@@ -225,8 +227,8 @@ export default class LangchainProvider
               configurable: {
                 fetch: this.plugin.textGenerator.proxyService.getFetch(
                   this.corsBypass ||
-                  this.default_values.corsBypass ||
-                  customConfig.corsBypass
+                    this.default_values.corsBypass ||
+                    customConfig.corsBypass
                 ),
               },
             }
@@ -237,11 +239,15 @@ export default class LangchainProvider
           let r: any;
           let res: BaseMessageChunk = {} as any;
 
-          console.log({ messages, k: "invoked", llmpredict: reqParams.llmPredict, llmPredict2: this.llmPredict })
+          console.log({
+            messages,
+            k: "invoked",
+            llmpredict: reqParams.llmPredict,
+            llmPredict2: this.llmPredict,
+          });
           if (reqParams.llmPredict || this.llmPredict)
             r = await (llm as any as ChatOpenAI).invoke(
-              chatToString(messages)
-              ,
+              chatToString(messages),
               {
                 signal: params.requestParams?.signal || undefined,
                 ...this.getReqOptions(params),
@@ -269,7 +275,11 @@ export default class LangchainProvider
           else
             result = res.content
               .map((c) =>
-                c.type == "image_url" ? `![](${c.image_url})` : c.type == "text" ? c.text : ""
+                c.type == "image_url"
+                  ? `![](${c.image_url})`
+                  : c.type == "text"
+                    ? c.text
+                    : ""
               )
               .join("\n");
         }
@@ -308,14 +318,14 @@ export default class LangchainProvider
             Array.from({ length: reqParams.n || 1 }).map(async () => {
               requestResults.push(
                 ...(
-                  await (llm).generate(
+                  await llm.generate(
                     reqParams.llmPredict || this.llmPredict
                       ? [chatToString(messages)]
                       : [
-                        mapMessagesToLangchainMessages(
-                          messages
-                        ) as any as string,
-                      ],
+                          mapMessagesToLangchainMessages(
+                            messages
+                          ) as any as string,
+                        ],
                     {
                       signal: params.requestParams?.signal || undefined,
                       ...this.getReqOptions(params),
@@ -328,7 +338,7 @@ export default class LangchainProvider
           );
         } else
           requestResults = (
-            await (llm).generate(
+            await llm.generate(
               reqParams.llmPredict || this.llmPredict
                 ? [chatToString(messages)]
                 : [mapMessagesToLangchainMessages(messages) as any as string],
@@ -411,23 +421,24 @@ export default class LangchainProvider
   }
 }
 
-
-
 function contentToString(content: Message["content"]) {
-  return typeof content == "string" ? content : Object.values(content).join(' ')
+  return typeof content == "string"
+    ? content
+    : Object.values(content).join(" ");
 }
 
 function chatToString(messages: Message[] = []) {
   return messages.length > 1
     ? // user: test1
-    // assistant: test2
-    // ...
-    messages.map((msg) => {
-      return `${msg.role}:${contentToString(msg.content)}`
-    }).join("\n")
+      // assistant: test2
+      // ...
+      messages
+        .map((msg) => {
+          return `${msg.role}:${contentToString(msg.content)}`;
+        })
+        .join("\n")
     : // test1
-    contentToString(messages[0].content)
-    ;
+      contentToString(messages[0].content);
 }
 
 function getChain(chainName: string, llm: any, config: any) {

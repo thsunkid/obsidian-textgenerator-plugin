@@ -84,6 +84,7 @@ export default class ReqFormatter {
     } = {
       ...(params.model && { model: params.model }),
       ...(params.max_tokens && { max_tokens: params.max_tokens }),
+      ...(params.max_completion_tokens && { max_completion_tokens: params.max_completion_tokens }),
       ...(params.temperature && { temperature: params.temperature }),
       ...(params.frequency_penalty && {
         frequency_penalty: params.frequency_penalty,

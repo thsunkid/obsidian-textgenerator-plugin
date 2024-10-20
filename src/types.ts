@@ -49,6 +49,7 @@ type TextGeneratorSettings = {
   api_key_encrypted?: Buffer | string;
   encrypt_keys?: boolean;
   max_tokens: number;
+  max_completion_tokens?: number;
   temperature: number;
   frequency_penalty: number;
   promptsPath: string;
@@ -206,7 +207,9 @@ export type AsyncReturnType<T extends (...args: any) => Promise<any>> =
 
 type LiteralUnion<T extends U, U = string> = T | (U & { zz_IGNORE_ME?: never });
 
-export type Role = LiteralUnion<"assistant" | "user" | "human" | "system" | "admin">;
+export type Role = LiteralUnion<
+  "assistant" | "user" | "human" | "system" | "admin"
+>;
 
 export type Message = {
   type?: string;
