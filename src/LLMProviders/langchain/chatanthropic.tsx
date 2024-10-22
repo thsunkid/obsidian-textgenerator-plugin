@@ -13,17 +13,15 @@ import { ModelsHandler } from "../utils";
 
 const logger = debug("textgenerator:llmProvider:chatanthropic");
 
-
 const default_values = {
   basePath: "https://api.anthropic.com/",
   model: "claude-3-5-sonnet-20240620",
 };
 
-
-
 export default class LangchainChatAnthropicProvider
   extends LangchainBase
-  implements LLMProviderInterface {
+  implements LLMProviderInterface
+{
   static provider = "Langchain";
   static id = "Chat Anthropic (Langchain)" as const;
   static slug = "anthropic" as const;
@@ -38,8 +36,8 @@ export default class LangchainChatAnthropicProvider
   default_values = default_values;
 
   defaultHeaders?: Record<string, string | null> | undefined = {
-    "anthropic-dangerous-direct-browser-access": "true"
-  }
+    "anthropic-dangerous-direct-browser-access": "true",
+  };
 
   getConfig(
     options: LLMConfig
@@ -79,7 +77,9 @@ export default class LangchainChatAnthropicProvider
 
     const id = props.self.id;
 
-    const config = (global.plugin.settings.LLMProviderOptions[id] ??= { ...props.self.default_values });
+    const config = (global.plugin.settings.LLMProviderOptions[id] ??= {
+      ...props.self.default_values,
+    });
 
     return (
       <>
@@ -150,11 +150,10 @@ export default class LangchainChatAnthropicProvider
     );
   }
 
-
   makeMessage(content: any, role: "system" | "user" | "assistant"): Message {
     return {
       role: role === "user" ? "human" : role,
-      content
+      content,
     };
   }
 }

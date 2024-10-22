@@ -32,11 +32,11 @@ export class InlineSuggest {
   getSuggestionsDebounced: (() => void) | undefined;
   scope:
     | (Scope & {
-      keys: {
-        key: string;
-        func: any;
-      }[];
-    })
+        keys: {
+          key: string;
+          func: any;
+        }[];
+      })
     | undefined;
   isOpen = false;
   static delay = 200;
@@ -221,8 +221,8 @@ export class InlineSuggest {
               // ["Backspace", "Tab", "ArrowRight", "Escape"].includes(evt.key) ...etc
               const lastletterOfTrigger =
                 self.plugin.settings.autoSuggestOptions.triggerPhrase[
-                self.plugin.settings.autoSuggestOptions.triggerPhrase.length -
-                1
+                  self.plugin.settings.autoSuggestOptions.triggerPhrase.length -
+                    1
                 ];
               if (
                 evt.key.length > 1 ||
@@ -359,8 +359,9 @@ class InlineSuggestionsWidget extends WidgetType {
     else span.textContent = content;
 
     const span2 = spanMAM.createEl("span");
-    span2.textContent = ` (${this.autoSuggest.viewedSuggestion + 1}/${this.autoSuggest.currentSuggestions.length
-      })`;
+    span2.textContent = ` (${this.autoSuggest.viewedSuggestion + 1}/${
+      this.autoSuggest.currentSuggestions.length
+    })`;
     span2.onselect = span2.onclick = () => {
       span.style.display = "hidden";
       this.onSelect(true);

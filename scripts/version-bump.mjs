@@ -40,8 +40,9 @@ try {
     console.log(` - manifest.json`);
     // console.log(` - versions.json`);
   }
-  console.log(`It will commit, push, create tag ${targetVersion} and push tags`);
-
+  console.log(
+    `It will commit, push, create tag ${targetVersion} and push tags`
+  );
 
   console.log("\n-------------------------------------------------");
   if (dryRun) {
@@ -67,7 +68,7 @@ try {
         writeFileSync("versions.json", JSON.stringify(versions, null, "\t"));
 
         console.log("writing versions.json");
-      } catch { }
+      } catch {}
     }
 
     // commit, create tag and push to origin (that will trigger github release action)
@@ -83,30 +84,20 @@ try {
     //   // even if this fails, it doesn't matter.
     // }
 
-    execSync(
-      `git push`,
-      {
-        cwd: ".",
-        stdio: "inherit",
-      }
-    );
+    execSync(`git push`, {
+      cwd: ".",
+      stdio: "inherit",
+    });
 
+    execSync(`git tag ${targetVersion}`, {
+      cwd: ".",
+      stdio: "inherit",
+    });
 
-    execSync(
-      `git tag ${targetVersion}`,
-      {
-        cwd: ".",
-        stdio: "inherit",
-      }
-    );
-
-    execSync(
-      `git push --tags`,
-      {
-        cwd: ".",
-        stdio: "inherit",
-      }
-    );
+    execSync(`git push --tags`, {
+      cwd: ".",
+      stdio: "inherit",
+    });
     console.log("DONE !");
   }
 } catch (e) {

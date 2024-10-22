@@ -19,14 +19,14 @@ export default function funCache<T extends (...args: any) => any>(
 
   const updateData = options.onDataUpdate
     ? debounce(() => {
-      try {
-        options.onDataUpdate?.(cached);
-      } catch (err) {
-        if (options.debug) {
-          console.error(err);
+        try {
+          options.onDataUpdate?.(cached);
+        } catch (err) {
+          if (options.debug) {
+            console.error(err);
+          }
         }
-      }
-    }, options.debounceTimer || 1000)
+      }, options.debounceTimer || 1000)
     : undefined;
 
   const checkExpiry = () => {
@@ -34,7 +34,7 @@ export default function funCache<T extends (...args: any) => any>(
       !firstTimeDone ||
       (options.lifeTime !== 0 &&
         Math.round(Date.now() - cached.____timeOfCreation) * 10 >
-        options.lifeTime)
+          options.lifeTime)
     ) {
       cached = { ____timeOfCreation: Date.now() };
     }
@@ -108,15 +108,15 @@ export async function fSCacher(tmpPath: string) {
       // @ts-ignore
       fs.existsSync(tmpPath)
         ? fs.readFileSync(tmpPath, {
-          encoding: "utf-8",
-        })
+            encoding: "utf-8",
+          })
         : "{}"
     ),
     onDataUpdate: async (ndata: any) => {
       try {
         await fsPromises.unlink(tmpPath);
         // eslint-disable-next-line no-empty
-      } catch { }
+      } catch {}
 
       await fsPromises.writeFile(tmpPath, JSON.stringify(ndata), {
         encoding: "utf-8",

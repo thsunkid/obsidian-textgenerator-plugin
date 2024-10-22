@@ -1,9 +1,6 @@
 import React from "react";
 import LangchainBase from "./base";
-import type {
-  AzureOpenAIInput,
-  OpenAIChatInput,
-} from "@langchain/openai";
+import type { AzureOpenAIInput, OpenAIChatInput } from "@langchain/openai";
 import { BaseChatModelParams } from "@langchain/core/language_models/chat_models";
 
 import { IconExternalLink } from "@tabler/icons-react";
@@ -17,7 +14,8 @@ const logger = debug("textgenerator:llmProvider:azureopenaiChat");
 
 export default class LangchainAzureOpenAIChatProvider
   extends LangchainBase
-  implements LLMProviderInterface {
+  implements LLMProviderInterface
+{
   static provider = "Langchain";
   static id = "Azure OpenAI Chat (Langchain)" as const;
   static slug = "azureOpenaiChat" as const;

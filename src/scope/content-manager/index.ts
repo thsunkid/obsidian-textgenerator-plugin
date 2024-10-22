@@ -18,11 +18,18 @@ export default class ContentManagerCls {
     let wrapInBlockQuote = plugin.settings.outputToBlockQuote;
 
     if (otherOptions?.templatePath) {
-      const templateMetadata = plugin.contextManager.getMetaData(otherOptions.templatePath);
-      wrapInBlockQuote = templateMetadata?.frontmatter?.outputToBlockQuote ?? wrapInBlockQuote;
+      const templateMetadata = plugin.contextManager.getMetaData(
+        otherOptions.templatePath
+      );
+      wrapInBlockQuote =
+        templateMetadata?.frontmatter?.outputToBlockQuote ?? wrapInBlockQuote;
     } else if (otherOptions?.templateContent) {
-      const templateFrontmatter = plugin.contextManager.extractFrontmatterFromTemplateContent(otherOptions.templateContent);
-      wrapInBlockQuote = templateFrontmatter?.outputToBlockQuote ?? wrapInBlockQuote;
+      const templateFrontmatter =
+        plugin.contextManager.extractFrontmatterFromTemplateContent(
+          otherOptions.templateContent
+        );
+      wrapInBlockQuote =
+        templateFrontmatter?.outputToBlockQuote ?? wrapInBlockQuote;
     }
 
     const options: Options = {

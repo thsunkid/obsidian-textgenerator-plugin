@@ -29,7 +29,6 @@ export const PackageProviderid = "package-provider";
 
 export const ProviderServer = "";
 
-
 export default class PackageManager {
   configuration: TextGeneratorConfiguration;
   app: App;
@@ -475,11 +474,13 @@ export default class PackageManager {
   }
 
   getPackagesList() {
-    const list = Object.entries(this.configuration.packagesHash).map(([id, p]) => ({
-      ...p,
-      installed: !!this.configuration.installedPackagesHash[p.packageId],
-      packageId: id,
-    }));
+    const list = Object.entries(this.configuration.packagesHash).map(
+      ([id, p]) => ({
+        ...p,
+        installed: !!this.configuration.installedPackagesHash[p.packageId],
+        packageId: id,
+      })
+    );
     return list;
   }
 
@@ -567,7 +568,8 @@ export default class PackageManager {
     logger("getReleaseByRepo", { repo });
     const rawReleases = JSON5.parse(
       await request({
-        url: `https://api.github.com/repos/${repo}/releases`, throw: true
+        url: `https://api.github.com/repos/${repo}/releases`,
+        throw: true,
       })
     ) as any;
 
@@ -604,7 +606,8 @@ export default class PackageManager {
     logger("getAsset end", { release, name });
 
     const txt = await request({
-      url: asset.url, throw: true
+      url: asset.url,
+      throw: true,
     });
     return JSON5.parse(txt) as {
       packageId: string;
@@ -803,20 +806,24 @@ export default class PackageManager {
   async updatePackagesList() {
     logger("updatePackagesList");
     const remotePackagesList: PackageTemplate[] = [
-      ...((JSON5.parse(await request({ url: packageRegistry, throw: true })) || []) as any)
+      ...(
+        (JSON5.parse(await request({ url: packageRegistry, throw: true })) ||
+          []) as any
+      )
         // to exclude any community features or labled as core
         .filter((p: PackageTemplate) => p.type !== "feature" && !p.core),
 
       // core packages can be templates or features
-      ...((JSON5.parse(await request({ url: corePackageRegistry, throw: true })) ||
-        []) as any),
+      ...((JSON5.parse(
+        await request({ url: corePackageRegistry, throw: true })
+      ) || []) as any),
     ];
 
     const newPackages = remotePackagesList.filter(
       (p) =>
         !this.getPackageById(p.packageId) ||
         JSON.stringify(p) !=
-        JSON.stringify(this.configuration.packagesHash[p.packageId])
+          JSON.stringify(this.configuration.packagesHash[p.packageId])
     );
 
     newPackages.forEach((e) => {
@@ -849,19 +856,21 @@ export default class PackageManager {
     console.log({
       stats,
       packagesHash: this.configuration.packagesHash,
-    })
+    });
 
     Object.values(this.configuration.packagesHash).forEach((p) => {
       this.configuration.packagesHash[p.packageId] = {
         ...this.configuration.packagesHash[p.packageId],
-        downloads: stats[p.packageId] ? stats[p.packageId].downloads : this.configuration.packagesHash[p.packageId]?.downloads || 0,
+        downloads: stats[p.packageId]
+          ? stats[p.packageId].downloads
+          : this.configuration.packagesHash[p.packageId]?.downloads || 0,
       };
     });
 
     console.log({
       stats,
       packagesHash: this.configuration.packagesHash,
-    })
+    });
 
     this.save();
     logger("updatePackagesStats end");

@@ -13,7 +13,7 @@ export default class ExcalidrawManager implements ContentManager {
   }
 
   options: Options = {
-    wrapInBlockQuote: false
+    wrapInBlockQuote: false,
   };
 
   getRange(from?: any, to?: any) {
@@ -103,7 +103,7 @@ export default class ExcalidrawManager implements ContentManager {
     return txt;
   }
 
-  selectTgSelection(tgSelectionLimiter?: string) { }
+  selectTgSelection(tgSelectionLimiter?: string) {}
 
   getLastLetterBeforeCursor(): string {
     return "";
@@ -166,12 +166,12 @@ export default class ExcalidrawManager implements ContentManager {
         id: undefined,
         box: pos?.type
           ? {
-            width: Math.min(
-              textSize.width + 2,
-              Math.max(this.ea.style.fontSize * 20, 200)
-            ),
-            boxPadding: 0,
-          }
+              width: Math.min(
+                textSize.width + 2,
+                Math.max(this.ea.style.fontSize * 20, 200)
+              ),
+              boxPadding: 0,
+            }
           : { boxPadding: 2 },
       });
 
@@ -250,9 +250,9 @@ export default class ExcalidrawManager implements ContentManager {
       items.length
         ? items
         : this.ea
-          .getViewElements()
-          .map((e: Item) => e.rawText)
-          .filter(Boolean)
+            .getViewElements()
+            .map((e: Item) => e.rawText)
+            .filter(Boolean)
     )[items.length - 1];
 
     // if (!selectedItem) throw "no selected items";
