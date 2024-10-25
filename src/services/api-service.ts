@@ -286,6 +286,10 @@ export default class RequestHandler {
         onError?: (error: any) => void
       ): Promise<string> => {
         try {
+          // Handle non-JSON responses gracefully
+          if (additionnalParams.signal?.aborted) {
+            throw new Error("Request aborted");
+          }
           const innerContext = {
             ...allParams,
             ...bodyParams,

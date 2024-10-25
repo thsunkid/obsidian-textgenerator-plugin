@@ -136,7 +136,21 @@ export default class CustomProvider
       try {
         resJson = JSON5.parse(resText as any);
       } catch (err: any) {
-        resJson = resText;
+        // If JSON parsing fails, try to extract error message from raw response
+        if (resText.includes("error")) {
+          try {
+            const errorMatch = resText.match(/"error":\s*{[^}]*"message":\s*"([^"]*)"}/);
+            if (errorMatch) {
+              resJson = { error: { message: errorMatch[1] } };
+            } else {
+              resJson = { error: { message: resText } };
+            }
+          } catch {
+            resJson = { error: { message: resText } };
+          }
+        } else {
+          resJson = { error: { message: resText } };
+        }
       }
       throw JSON5.stringify(resJson);
     }
