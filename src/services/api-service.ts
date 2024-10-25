@@ -12,6 +12,7 @@ import LLMProviderRegistry from "../LLMProviders/registery";
 import { defaultProvidersMap } from "../LLMProviders";
 import providerOptionsValidator from "../LLMProviders/providerOptionsValidator";
 import { ProxyService } from "./proxy-service";
+import { createTempFileForPreview } from "#/utils";
 const logger = debug("textgenerator:TextGenerator");
 
 export default class RequestHandler {
@@ -247,6 +248,13 @@ export default class RequestHandler {
           : context.context
       ) as string;
 
+      if (options?.debugMode)
+        await createTempFileForPreview(
+          this.plugin,
+          prompt,
+          options?.viewPreviewTime || 30
+        );
+
       const { reqParams, bodyParams, provider, allParams } =
         await this.reqFormatter.getRequestParameters(
           {
@@ -478,6 +486,13 @@ export default class RequestHandler {
           ? await template.inputTemplate(options)
           : context.context
       ) as string;
+
+      if (options?.debugMode)
+        await createTempFileForPreview(
+          this.plugin,
+          prompt,
+          options?.viewPreviewTime || 30
+        );
 
       const { reqParams, bodyParams, provider, allParams } =
         await this.reqFormatter.getRequestParameters(
