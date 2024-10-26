@@ -100,6 +100,8 @@ export interface AvailableContext {
   templatePath?: string;
   debugMode?: boolean;
   viewPreviewTime?: number;
+  outputDir?: string;
+  skipFileCreationConfirmation?: boolean;
 }
 
 interface TableRow {

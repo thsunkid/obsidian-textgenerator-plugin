@@ -403,6 +403,8 @@ export default class TextGenerator extends RequestHandler {
         insertMode,
       })
     );
+    const skipFileCreationConfirmation =
+      context.options?.skipFileCreationConfirmation;
 
     if (errortext) {
       logger("tempalteToModal error", errortext);
@@ -410,8 +412,10 @@ export default class TextGenerator extends RequestHandler {
     }
 
     const title = this.plugin.app.workspace.activeLeaf?.getDisplayText();
+    const newFileName = title + "-" + makeId(3) + ".md";
     const suggestedPath = this.plugin.getTextGenPath(
-      "/generations/" + title + "-" + makeId(3) + ".md"
+      context.options?.outputDir ? newFileName : "/generations/" + newFileName,
+      context.options?.outputDir
     );
     new SetPath(
       this.plugin.app,
@@ -428,9 +432,10 @@ export default class TextGenerator extends RequestHandler {
         openFile(this.plugin.app, file);
       },
       {
-        content: context.context + text,
+        content: skipFileCreationConfirmation ? text : context.context + text,
         title,
-      }
+      },
+      skipFileCreationConfirmation
     ).open();
     logger("createToFile end");
   }

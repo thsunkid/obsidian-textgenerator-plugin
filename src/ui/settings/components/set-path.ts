@@ -9,20 +9,30 @@ export class SetPath extends Modal {
     | { title?: string | undefined; content?: string | undefined }
     | undefined;
 
+  skipFileCreationConfirmation?: boolean;
+
   constructor(
     app: App,
     result: string,
     onSubmit: (result: string) => void,
-    info?: { title?: string; content?: string }
+    info?: { title?: string; content?: string },
+    skipFileCreationConfirmation?: boolean
   ) {
     super(app);
     this.result = result;
     this.onSubmit = onSubmit;
     this.info = info;
+    this.skipFileCreationConfirmation = skipFileCreationConfirmation;
   }
 
   onOpen() {
     logger("onOpen");
+    if (this.skipFileCreationConfirmation) {
+      this.onSubmit(this.result);
+      this.close();
+      return;
+    }
+
     const { contentEl } = this;
 
     contentEl.createEl("h1", {

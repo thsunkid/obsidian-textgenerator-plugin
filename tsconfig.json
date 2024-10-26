@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "jsx": "react",
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "inlineSourceMap": true,
     "inlineSources": true,
@@ -18,7 +18,11 @@
     "allowSyntheticDefaultImports": true,
     "paths": {
       "#/*": ["./src/*"]
-    }
+    },
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
   },
   "include": ["src/**/*", "d/**/*"],
   "exclude": ["node_modules"]
