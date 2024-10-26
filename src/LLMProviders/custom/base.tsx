@@ -139,7 +139,9 @@ export default class CustomProvider
         // If JSON parsing fails, try to extract error message from raw response
         if (resText.includes("error")) {
           try {
-            const errorMatch = resText.match(/"error":\s*{[^}]*"message":\s*"([^"]*)"}/);
+            const errorMatch = resText.match(
+              /"error":\s*{[^}]*"message":\s*"([^"]*)"}/
+            );
             if (errorMatch) {
               resJson = { error: { message: errorMatch[1] } };
             } else {
@@ -321,7 +323,10 @@ export default class CustomProvider
         else {
           const choices = res as any;
           if (typeof choices == "string") resultContent = choices;
-          else resultContent = choices.map((c: any) => c.content).join("\n");
+          else
+            resultContent = choices
+              .map((c: any) => c?.content || c?.text)
+              .join("\n");
         }
 
         logger("generate end", {

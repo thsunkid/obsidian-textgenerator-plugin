@@ -1,4 +1,11 @@
-import { App, Notice, Component, TFile, HeadingCache } from "obsidian";
+import {
+  App,
+  Notice,
+  Component,
+  TFile,
+  HeadingCache,
+  CachedMetadata,
+} from "obsidian";
 import { AsyncReturnType, Context, Message } from "../types";
 import TextGeneratorPlugin from "../main";
 import { IGNORE_IN_YAML } from "../constants";
@@ -6,7 +13,6 @@ import { IGNORE_IN_YAML } from "../constants";
 import {
   escapeRegExp,
   getContextAsString,
-  getFilePathByName,
   removeYAML,
   replaceScriptBlocksWithMustachBlocks,
   walkUntilTrigger,
@@ -69,6 +75,8 @@ export interface AvailableContext {
   yaml?: Record<string, any>;
   metadata?: string;
   content?: string;
+  contentWithRef?: string;
+  instructionAddtlContext?: string;
   headings?: AsyncReturnType<
     InstanceType<typeof ContextManager>["getHeadingContent"]
   >;
@@ -90,6 +98,32 @@ export interface AvailableContext {
 
   noteFile?: TFile;
   templatePath?: string;
+  debugMode?: boolean;
+  viewPreviewTime?: number;
+}
+
+interface TableRow {
+  [key: string]: string;
+}
+interface ExtendedChildFile extends TFile {
+  content: string;
+  title: string;
+  position: {
+    start: {
+      line: number;
+      col: number;
+      offset: number;
+    };
+    end: {
+      line: number;
+      col: number;
+      offset: number;
+    };
+  };
+  isEmbeddedBlock: boolean;
+  isMentionedDoc: boolean;
+  frontmatter: any;
+  headings: HeadingCache[] | undefined;
 }
 
 export default class ContextManager {
@@ -123,6 +157,7 @@ export default class ContextManager {
       "getContext",
       props.insertMetadata,
       props.templatePath,
+      templateContent,
       props.addtionalOpts
     );
 
@@ -139,11 +174,17 @@ export default class ContextManager {
         props.addtionalOpts
       );
 
-      if (!templatePath.length)
+      if (!templatePath.length) {
+        logger(
+          "/!\\ Context Template not from path.",
+          "There is no context output from here. Only using with playground.",
+          options
+        );
         return {
           options,
           templatePath: "",
         };
+      }
 
       const { context, inputTemplate, outputTemplate } =
         await this.templateFromPath(templatePath, options, templateContent);
@@ -170,6 +211,7 @@ export default class ContextManager {
         contextTemplate
       );
 
+      logger("getContext.options", options);
       // take context
       let context = await getContextAsString(options as any, contextTemplate);
 
@@ -303,7 +345,7 @@ export default class ContextManager {
     filePath?: string;
     templatePath?: string;
     templateContent?: string;
-  }) {
+  }): Promise<AvailableContext> {
     const templatePath = props.templatePath || "";
     logger("getTemplateContext", props.editor, props.templatePath);
 
@@ -323,58 +365,54 @@ export default class ContextManager {
       this.plugin.settings.context.contextTemplate ||
       this.plugin.defaultSettings.context.contextTemplate;
 
+    logger(
+      "getTemplateContext.contextTemplate",
+      this.plugin.settings.context.contextTemplate,
+      this.plugin.defaultSettings.context.contextTemplate
+    );
+
     const contextObj = await this.getDefaultContext(
       props.editor,
       undefined,
-      contextTemplate + templateContent
+      contextTemplate + templateContent,
+      templatePath
     );
 
     const context = contextObj._variables["context"]
       ? await getContextAsString(contextObj as any, contextTemplate)
       : "";
 
-    const selection = contextObj.selection;
-    const selections = contextObj.selections;
-    const ctnt = contextObj?.content;
+    const { selection, selections, content, headings } = contextObj;
 
-    const blocks: any = contextObj;
+    const blocks = {
+      ...contextObj,
+      frontmatter: merge(
+        {},
+        this.getFrontmatter(this.getMetaData(templatePath)),
+        contextObj.frontmatter
+      ),
+      headings,
+    };
 
-    blocks["frontmatter"] = {};
-    blocks["headings"] = contextObj.headings;
-
-    // const variables = getHBValues(templateContent);
-    // const vars: Record<string, true> = {};
-
-    // variables.forEach((v) => {
-    //   vars[v] = true;
-    // });
-
-    // logger("getTemplateContext Variables ", { variables });
-
-    blocks["frontmatter"] = merge(
-      {},
-      this.getFrontmatter(this.getMetaData(templatePath)),
-      contextObj.frontmatter
-    );
-
-    if (contextOptions.includeClipboard)
+    if (contextOptions.includeClipboard) {
       try {
-        blocks["clipboard"] = await this.getClipboard();
+        blocks.clipboard = await this.getClipboard();
       } catch {
-        // empty
+        // Clipboard access failed, ignore
       }
+    }
 
     const options = {
       selection,
       selections,
-      ...blocks["frontmatter"],
-      ...blocks["headings"],
-      content: ctnt,
+      ...blocks.frontmatter,
+      ...blocks.headings,
+      content,
       context,
       ...blocks,
     };
 
-    logger("getTemplateContext Context Variables ", options);
+    logger("getTemplateContext Context Variables", options);
     return options;
   }
 
@@ -385,9 +423,10 @@ export default class ContextManager {
   async getDefaultContext(
     editor?: ContentManager,
     filePath?: string,
-    contextTemplate?: string
-  ) {
-    logger("getDefaultContext", editor, contextTemplate);
+    contextTemplate?: string,
+    templatePath?: string
+  ): Promise<AvailableContext> {
+    logger("contextTemplate", contextTemplate);
 
     const context: AvailableContext = {
       keys: {},
@@ -450,6 +489,38 @@ export default class ContextManager {
 
       if (vars["content"]) context["content"] = await editor.getValue();
 
+      if (vars["instructionAddtlContext"] && templatePath) {
+        const frontmatter = this.getFrontmatter(this.getMetaData(templatePath));
+        if (!frontmatter.instructionFilePath)
+          throw new Error("No instructionFilePath in frontmatter");
+        const instructionFilePath = frontmatter.instructionFilePath; // ;
+        const formattedInstructionContent =
+          await this.compileInstruction(instructionFilePath);
+        context["instructionAddtlContext"] = formattedInstructionContent;
+      }
+
+      if (vars["contentWithRef"]) {
+        const originalContent = await editor.getValue();
+
+        const formattedContentWithRef = await this.replaceLinksWithContent(
+          originalContent,
+          activeDocCache,
+          true,
+          true
+        );
+        const metadataSeparatorString = "\n\n---";
+        // Remove the metadata starting from the first separator string
+        const formattedContentWithRefWithoutMetadata =
+          formattedContentWithRef.includes(metadataSeparatorString)
+            ? formattedContentWithRef
+                .split(metadataSeparatorString)
+                .slice(1)
+                .join(metadataSeparatorString)
+            : formattedContentWithRef;
+
+        context["contentWithRef"] = formattedContentWithRefWithoutMetadata;
+      }
+
       if (vars["highlights"])
         context["highlights"] = editor ? await this.getHighlights(editor) : [];
     }
@@ -490,7 +561,6 @@ export default class ContextManager {
           _dVCache
         );
 
-    logger("getDefaultContext", { context });
     return context;
   }
 
@@ -609,6 +679,9 @@ export default class ContextManager {
     logger("splitTemplate", templateContent);
     templateContent = removeYAML(templateContent);
 
+    // @NOTE: THIS SHIT IS COMPLICATED AF.
+    // The inputTemplate is used to generate the input for the text generation model,
+    // possibly include the script (see `replaceScriptBlocksWithMustachBlocks`) or dynamic content.
     let inputContent, outputContent, preRunnerContent;
     if (templateContent.includes("***")) {
       const splitContent = templateContent
@@ -630,6 +703,8 @@ export default class ContextManager {
       outputContent = this.overProcessTemplate("");
     }
 
+    // The handlebarsMiddleware function is a wrapper around a Handlebars template delegate (result of Handlebars.compile(inputContent))
+    // Its main purpose is to add an extra layer of processing (blocks, dataview, dataviewjs) after the initial Handlebars template compilation and execution.
     const inputTemplate = this.handlebarsMiddleware(
       Handlebars.compile(inputContent, {
         noEscape: true,
@@ -746,19 +821,15 @@ export default class ContextManager {
   }
 
   getSelections(editor: ContentManager) {
-    logger("getSelections", editor);
     const selections = editor.getSelections();
-    logger("getSelections", { selections });
     return selections;
   }
 
   getTGSelection(editor: ContentManager) {
-    logger("getTGSelection", editor);
     return editor.getTgSelection(this.plugin.settings.tgSelectionLimiter);
   }
 
   async getSelection(editor: ContentManager) {
-    logger("getSelection", editor);
     let selectedText = await editor.getSelection();
 
     const frontmatter = this.getMetaData()?.frontmatter; // frontmatter of the active document
@@ -829,7 +900,10 @@ export default class ContextManager {
 
       if (!link.link) continue;
 
-      const path = getFilePathByName(link.link);
+      const path = this.app.metadataCache.getFirstLinkpathDest(
+        link.link,
+        ""
+      )?.path;
 
       if (!path) continue;
 
@@ -859,6 +933,362 @@ export default class ContextManager {
       children.push(childInfo);
     }
     return children;
+  }
+
+  async compileInstruction(instructionFilePath: string): Promise<string> {
+    const startTime = performance.now();
+    const instructionContent = await this.loadFileContent(instructionFilePath);
+    if (!instructionContent)
+      throw `Instruction file ${instructionFilePath} couldn't be found`;
+
+    const instructionCache = await this.getMetaData(instructionFilePath);
+
+    const contentWithEmbededBlocksContent = await this.replaceLinksWithContent(
+      instructionContent,
+      instructionCache,
+      true,
+      false
+    );
+    const contentWithRefTable = this.detectAndConvertTables(
+      contentWithEmbededBlocksContent
+    );
+    const parseContent = async (
+      content: string
+    ): Promise<CachedMetadata | null> => {
+      const tempFile = await this.createTempFile(content);
+      // const fileMetadata = this.getMetaData(tempFile.path);
+      const getCache = async (retries = 5) => {
+        for (let i = 0; i < retries; i++) {
+          const cache = this.app.metadataCache.getFileCache(tempFile);
+          if (cache) return cache;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        return null;
+      };
+      const fileMetadata = await getCache();
+      if (await this.app.vault.adapter.exists(tempFile.path)) {
+        await this.app.vault.delete(tempFile);
+      }
+      return fileMetadata;
+    };
+    const curContentMetadata = await parseContent(contentWithRefTable);
+    const contentWithRef = await this.replaceLinksWithContent(
+      contentWithRefTable,
+      curContentMetadata,
+      false,
+      true
+    );
+    logger(
+      `Execution time to extract instruction: ${performance.now() - startTime} ms`
+    );
+    return contentWithRef;
+  }
+
+  async loadFileContent(filePath: string): Promise<string | null> {
+    const file = await this.app.vault.getAbstractFileByPath(filePath);
+    if (!file) return null;
+    const content = await this.app.vault.read(file as TFile);
+    return content;
+  }
+
+  async createTempFile(content: string) {
+    const tempFile = await this.app.vault.create(
+      `temp-${Date.now()}.md`,
+      content
+    );
+    return tempFile;
+  }
+
+  async extractChildrenInfo(
+    fileCache: {
+      links?: {
+        original: string;
+        link: string;
+        position?: any;
+      }[];
+      embeds?: {
+        original: string;
+        link: string;
+        position?: any;
+      }[];
+    },
+    extractEmbeddedBlocks = true,
+    extractMentionedDocs = true
+  ): Promise<ExtendedChildFile[]> {
+    // Extended children includes mentioned docs and block embedding
+    const children: ExtendedChildFile[] = [];
+
+    logger("getChildrenContent.fileCache", fileCache);
+
+    const links = [
+      ...(extractMentionedDocs
+        ? fileCache?.links?.filter(
+            (e) => e.original.substring(0, 2) === "[["
+          ) || []
+        : []),
+      ...(extractEmbeddedBlocks
+        ? fileCache?.embeds?.filter(
+            (e) => e.original.substring(0, 3) === "![["
+          ) || []
+        : []),
+    ];
+
+    logger("getChildrenContent.links", links);
+
+    if (!links) return children;
+
+    for (let i = 0; i < links.length; i++) {
+      const link = links[i] || "";
+      // Remove the block citation from the link
+      const [processedLink, citingBlockHash] = link.link.split("#^");
+
+      if (!processedLink) continue;
+
+      const path = this.app.metadataCache.getFirstLinkpathDest(
+        processedLink,
+        ""
+      )?.path;
+
+      if (!path) continue;
+
+      const file: TFile = this.app.vault.getAbstractFileByPath(path);
+
+      if (!file) continue;
+
+      // load the file
+      let content = await this.app.vault.read(file as any);
+      if (citingBlockHash) {
+        // split by "\n"
+        const contentBlocks = content.split("\n");
+        // find the block with the hash
+        const blockIndex = contentBlocks.findIndex((block) =>
+          block.includes(citingBlockHash)
+        );
+        if (blockIndex !== -1) {
+          content = contentBlocks[blockIndex].replaceAll(
+            `^${citingBlockHash}`,
+            ""
+          );
+        }
+      }
+
+      const metadata = this.getMetaData(file.path);
+
+      const childInfo: ExtendedChildFile = {
+        ...file,
+        content,
+        title: file.name.substring(0, file.name.length - 2),
+        position: link.position,
+        isEmbeddedBlock: link.original.substring(0, 3) === "![[",
+        isMentionedDoc: link.original.substring(0, 2) === "[[",
+        frontmatter: metadata?.frontmatter,
+        headings: metadata?.headings,
+      };
+
+      children.push(childInfo);
+    }
+    // Sort children based on position
+    children.sort((a, b) => {
+      // The 'offset' represents the character index in the entire document.
+      // A higher offset means the content appears later in the document.
+      const aOffset = a.position?.end?.offset || 0;
+      const bOffset = b.position?.end?.offset || 0;
+      return bOffset - aOffset; // Sort in descending order (end to start)
+    });
+
+    logger("extractChildrenInfo.children", children);
+
+    // Now 'children' is sorted from end to start, allowing for
+    // easier replacement of content without affecting earlier positions.
+    return children;
+  }
+
+  async replaceLinksWithContent(
+    content: string,
+    fileCache: any,
+    resolveEmbeddedBlock = true,
+    resolveMentionedDocs = true,
+    addCitationAtEnd = true
+  ) {
+    const children = await this.extractChildrenInfo(
+      fileCache,
+      resolveEmbeddedBlock,
+      resolveMentionedDocs
+    );
+
+    // Create a copy of the original content
+    let updatedContent = content;
+    if (addCitationAtEnd && children.some((child) => child.isMentionedDoc)) {
+      updatedContent = updatedContent + "\n***\nMentioned citation content:";
+    }
+
+    // Iterate through sorted children (from end to front)
+    for (const child of children) {
+      if (child.isEmbeddedBlock) {
+        // Replace the link with the child's content
+        updatedContent =
+          updatedContent.slice(0, child.position.start.offset) +
+          `${child.content}` +
+          updatedContent.slice(child.position.end.offset);
+      } else if (child.isMentionedDoc) {
+        // The first line of the child's content is the title. Exclude it.
+        const contentWithoutTitle = child.content
+          .split("\n")
+          .slice(1)
+          .join("\n");
+
+        const originalCitationString = updatedContent.slice(
+          child.position.start.offset,
+          child.position.end.offset
+        );
+        const citationPrefix = "[C] ";
+        const formattedCitationString = originalCitationString.replaceAll(
+          citationPrefix,
+          ""
+        );
+
+        // @NOTE: Do not find and replace all.
+        // That will change the position of the next citation that we process
+        updatedContent =
+          updatedContent.slice(0, child.position.start.offset) +
+          formattedCitationString +
+          updatedContent.slice(child.position.end.offset);
+
+        if (addCitationAtEnd) {
+          // add the child's content to the end of updatedContent
+          updatedContent = `${updatedContent}\n\n${formattedCitationString}:\n${contentWithoutTitle}`;
+        } else {
+          // add the child's content to the end of position.end.offset
+          updatedContent =
+            updatedContent.slice(
+              0,
+              child.position.end.offset - citationPrefix.length
+            ) +
+            `(Citation content: ${contentWithoutTitle})` +
+            updatedContent.slice(
+              child.position.end.offset - citationPrefix.length
+            );
+        }
+      }
+    }
+
+    return updatedContent;
+  }
+
+  detectAndConvertTables(content: string): string {
+    // Regular expression to match Markdown tables, including the header
+    const tableRegex =
+      /((?:^|\n)#+\s*.*\n+)(\|(.+)\|[\r\n]+\|([-:\s|]+)\|[\r\n]+([\s\S]+?))(?=\n\n|\n*$)/g;
+
+    let updatedContent = content;
+    let match;
+
+    while ((match = tableRegex.exec(content)) !== null) {
+      const fullMatch = match[2];
+      const headers = match[3]
+        .split("|")
+        .map((header) => header.trim())
+        .filter(Boolean);
+      const rowsContent = match[5];
+
+      const rows = this.parseTableRows(rowsContent, headers.length);
+
+      const tables: TableRow[] = rows
+        .map((row) => {
+          const tableRow: TableRow = {};
+          headers.forEach((header, index) => {
+            tableRow[header] = row[index] || "";
+          });
+          return tableRow;
+        })
+        .filter((row) => Object.values(row).some((value) => value !== "")); // Filter out completely empty rows
+
+      // Skip empty tables
+      if (tables.length === 0) {
+        continue;
+      }
+
+      // Convert the table array to a JSON string
+      const jsonString = JSON.stringify(tables, null, 2);
+
+      // Replace the original table with the JSON string
+      updatedContent = updatedContent.replace(fullMatch, jsonString);
+    }
+
+    return updatedContent;
+  }
+
+  private parseTableRows(content: string, columnCount: number): string[][] {
+    const rows: string[][] = [];
+    const lines = content.split("\n");
+    let buffer = "";
+    for (let i = 0; i <= lines.length; i++) {
+      const line = lines[i] || "";
+      // If the line starts with '|' and ends with '|', we consider it a new row
+      if (
+        (line.trim().startsWith("|") && line.trim().endsWith("|")) ||
+        i === lines.length
+      ) {
+        if (buffer) {
+          // Process the buffered lines
+          const rowText = buffer;
+          const cells = this.splitRowIntoCells(rowText);
+          rows.push(cells);
+          buffer = "";
+        }
+        buffer = line;
+      } else {
+        // Continue buffering lines
+        buffer += "\n" + line;
+      }
+    }
+    return rows;
+  }
+
+  private splitRowIntoCells(rowText: string): string[] {
+    const cells: string[] = [];
+    let currentCell = "";
+    let linkDepth = 0;
+    let i = 0;
+
+    // Remove leading and trailing '|' and trim
+    rowText = rowText.trim();
+    if (rowText.startsWith("|")) {
+      rowText = rowText.slice(1);
+    }
+    if (rowText.endsWith("|")) {
+      rowText = rowText.slice(0, -1);
+    }
+    rowText = rowText.trim();
+
+    while (i < rowText.length) {
+      const ch = rowText[i];
+
+      if (ch === "[" && rowText.slice(i, i + 3) === "[[[") {
+        linkDepth++;
+        currentCell += "[[[";
+        i += 3;
+        continue;
+      } else if (ch === "]" && rowText.slice(i, i + 2) === "]]") {
+        linkDepth--;
+        currentCell += "]]";
+        i += 2;
+        continue;
+      } else if (ch === "|" && linkDepth === 0) {
+        // Cell separator
+        cells.push(currentCell.trim());
+        currentCell = "";
+        i++;
+        continue;
+      } else {
+        currentCell += ch;
+        i++;
+        continue;
+      }
+    }
+    // Add the last cell
+    cells.push(currentCell.trim());
+    return cells;
   }
 
   async getHighlights(editor: ContentManager) {
@@ -1076,6 +1506,7 @@ export default class ContextManager {
     for (const [key, value] of Object.entries(frontmatter) as Array<
       [string, string | any[]]
     >) {
+      logger("getMetaDataAsStr.key", key);
       if (
         !value ||
         key.includes(".") ||
@@ -1096,6 +1527,7 @@ export default class ContextManager {
         cleanFrontMatter += `${key} : ${value} \n`;
       }
     }
+    logger("getMetaDataAsStr.cleanFrontMatter", cleanFrontMatter);
     return cleanFrontMatter;
   }
 
@@ -1125,6 +1557,7 @@ export default class ContextManager {
   ): Promise<string> {
     if (!md || typeof md != "string") return md;
 
+    // Process code blocks and dataview/dataviewjs blocks if needed.
     const parsedTemplateMD: string = await this.processCodeBlocks(
       md,
       async ({ type, content, full }) => {
@@ -1309,6 +1742,14 @@ export const contextVariablesObj: Record<
   content: {
     example: "{{content}}",
     hint: "Represents the entirety of the note's content.",
+  },
+  contentWithRef: {
+    example: "{{contentWithRef}}",
+    hint: "The note's content with references converted to their content.",
+  },
+  instructionAddtlContext: {
+    example: "{{instructionAddtlContext}}",
+    hint: "The content of the instruction file referenced by the instructionAddtlContext variable.",
   },
   selection: {
     example: "{{selection}}",

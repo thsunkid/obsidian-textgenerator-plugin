@@ -171,12 +171,16 @@ export default class LangchainProvider
         const params = this.configMerger(reqParams);
 
         // if the model is streamable
-        params.stream = params.stream && this.streamable;
+        params.stream =
+          params.stream && this.streamable && !params.model.startsWith("o1-");
 
         const llm = await this.getLLM(params);
 
         let first = true;
         let allText = "";
+
+        if (customConfig?.debugMode)
+          return s(customConfig?.debuggingMessage || "helo world!");
 
         const llmFuncs: Callbacks = [
           {

@@ -459,10 +459,6 @@ export function debounce<T extends unknown[], R>(
   };
 }
 
-export function getFilePathByName(name: string): string | undefined {
-  return app.metadataCache.getFirstLinkpathDest(name, "")?.path;
-}
-
 export function currentDate() {
   const date = new Date();
   const month = date.getMonth() + 1;
@@ -480,6 +476,7 @@ export function getCurrentTime() {
 }
 
 import JSON5 from "json5";
+import TextGeneratorPlugin from "#/main";
 
 export function extractJsonFromText(text: string) {
   const jsonRegex = /^```(json|JSON)([\s\S]+?)```/;
@@ -497,4 +494,45 @@ export function extractJsonFromText(text: string) {
     console.error("No JSON block found in the text.");
     return null;
   }
+}
+
+export const createTempFileForPreview = async (
+  plugin: TextGeneratorPlugin,
+  result: string,
+  timeout = 10
+) => {
+  // Create a temporary file for review
+  const tempFileName = `tmp/Complied-Prompt-Result-${Date.now()}.md`;
+  const tempFile = await plugin.app.vault.create(tempFileName, result);
+
+  // Open the temporary file
+  await plugin.app.workspace.openLinkText(tempFile.path, "", true);
+
+  // Set a timeout to remove the temporary file after 10 seconds
+  setTimeout(async () => {
+    try {
+      await plugin.app.vault.delete(tempFile);
+      console.log(`Temporary file ${tempFileName} has been removed.`);
+    } catch (error) {
+      console.error(`Failed to remove temporary file ${tempFileName}:`, error);
+    }
+  }, timeout * 1000);
+};
+
+export function parsePrompt(prompt: string) {
+  // If prompt is a string that contains <|im_start|> and <|im_end|> separators,
+  // then it is a concatenated string of messages, and we need to parse it into an array of messages
+  const regex = /<\|im_start\|>(system|user)\n([\s\S]*?)<\|im_end\|>/g;
+  const trimmedPrompt = prompt.trim();
+  const matches = [...trimmedPrompt.matchAll(regex)];
+
+  // If no matches or doesn't start with marker, treat as simple user message
+  if (!matches.length || !trimmedPrompt.startsWith("<|im_start|>")) {
+    return [{ role: "user", message: prompt.trim() }];
+  }
+
+  return matches.map((match) => ({
+    role: match[1],
+    message: match[2].trim(),
+  }));
 }

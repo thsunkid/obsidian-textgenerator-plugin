@@ -3,7 +3,7 @@ import { Message, TextGeneratorSettings } from "../types";
 import TextGeneratorPlugin from "../main";
 import ContextManager from "../scope/context-manager";
 import debug from "debug";
-import { transformStringsToChatFormat } from ".";
+import { transformStringsToChatFormat, parsePrompt } from ".";
 import { LLMConfig } from "../LLMProviders/interface";
 import { AI_MODELS } from "#/constants";
 const logger = debug("textgenerator:ReqFormatter");
@@ -107,12 +107,29 @@ export default class ReqFormatter {
       (typeof params.prompt == "object" ||
         params.prompt?.replaceAll?.("\n", "").trim().length)
     ) {
-      bodyParams.messages.push(
-        this.plugin.textGenerator.LLMProvider.makeMessage(
-          params.prompt || "",
-          "user"
-        )
-      );
+      if (
+        params.prompt?.includes("<|im_start|>") &&
+        params.config?.useSeparatorsForPrompt
+      ) {
+        const messages = parsePrompt(params.prompt);
+        messages.forEach((msg) => {
+          bodyParams.messages.push(
+            this.plugin.textGenerator.LLMProvider.makeMessage(
+              msg.message,
+              params.model.startsWith("o1-")
+                ? "user"
+                : (msg.role as "user" | "system" | "assistant")
+            )
+          );
+        });
+      } else {
+        bodyParams.messages.push(
+          this.plugin.textGenerator.LLMProvider.makeMessage(
+            params.prompt || "",
+            "user"
+          )
+        );
+      }
     }
 
     let reqParams: RequestInit & {

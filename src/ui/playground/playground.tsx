@@ -10,7 +10,7 @@ import useHoldingKey from "../components/useHoldingKey";
 import { Handlebars } from "#/helpers/handlebars-helpers";
 import clsx from "clsx";
 import AvailableVars from "../components/availableVars";
-import { makeId } from "#/utils";
+import { makeId, createTempFileForPreview } from "#/utils";
 import ContentManagerCls from "#/scope/content-manager";
 import CodeEditor from "../components/codeEditor";
 
@@ -118,17 +118,16 @@ export default function ChatComp(props: {
           signal: abortController.signal,
         },
       };
-
+      const sanitizedTemplateContent =
+        props.plugin.contextManager.overProcessTemplate(templateContent);
       const result = await props.plugin.contextManager.execDataview(
-        await Handlebars.compile(
-          props.plugin.contextManager.overProcessTemplate(templateContent)
-        )({
+        await Handlebars.compile(sanitizedTemplateContent)({
           ...context.options,
           templatePath: "default/default",
-          inputContext,
+          // inputContext, // NOT USED
         })
       );
-      console.log(`Preview:\n${result}`);
+      await createTempFileForPreview(props.plugin, result, 30);
 
       if (wasHoldingCtrl) {
         setAnswer(

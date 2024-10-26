@@ -251,7 +251,7 @@ export default class TextGenerator extends RequestHandler {
       streamHandler.end();
 
       await streamHandler.replaceAllWith(
-        !addedPrefix && prefix.length ? prefix + allText : allText
+        addedPrefix && prefix.length ? prefix + allText : allText
       );
     } catch (err: any) {
       this.plugin.handelError(err);
@@ -275,7 +275,8 @@ export default class TextGenerator extends RequestHandler {
     const frontmatter = this.reqFormatter.getFrontmatter("", insertMetadata);
     if (
       this.plugin.settings.stream &&
-      this.plugin.textGenerator.LLMProvider?.streamable &&
+      this.LLMProvider?.streamable &&
+      customContext?.options?.frontmatter?.stream !== false &&
       frontmatter.stream !== false
     ) {
       return this.generateStreamInEditor(
