@@ -11,6 +11,7 @@ import LangchainAzureOpenAIChatProvider from "./langchain/azureOpenAIChat";
 import LangchainAzureOpenAIInstructProvider from "./langchain/azureOpenAIInstruct";
 import LangchainPalmProvider from "./langchain/palm";
 import LangchainChatGoogleGenerativeAIProvider from "./langchain/googleGenerativeAI";
+import ProxyAnthropicProvider from "./custom/proxyAnthropic";
 // import LangchainReplicaProvider from "./langchain/replica"
 
 // import { LOCClone1, LOCClone2 } from "./langchain/clones";
@@ -51,6 +52,7 @@ export const defaultProviders = [
 
   // custom
   CustomProvider,
+  ProxyAnthropicProvider,
 ];
 
 export type llmType = (typeof defaultProviders)[number]["id"];
