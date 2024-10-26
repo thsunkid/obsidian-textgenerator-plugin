@@ -2,7 +2,7 @@ import { App, Modal, Setting, Notice } from "obsidian";
 import debug from "debug";
 const logger = debug("textgenerator:SetPath");
 export class SetPath extends Modal {
-  result: string;
+  suggestedPath: string;
   onSubmit: (result: string) => void;
 
   info:
@@ -13,13 +13,13 @@ export class SetPath extends Modal {
 
   constructor(
     app: App,
-    result: string,
-    onSubmit: (result: string) => void,
+    suggestedPath: string,
+    onSubmit: (suggestedPath: string) => void,
     info?: { title?: string; content?: string },
     skipFileCreationConfirmation?: boolean
   ) {
     super(app);
-    this.result = result;
+    this.suggestedPath = suggestedPath;
     this.onSubmit = onSubmit;
     this.info = info;
     this.skipFileCreationConfirmation = skipFileCreationConfirmation;
@@ -28,7 +28,7 @@ export class SetPath extends Modal {
   onOpen() {
     logger("onOpen");
     if (this.skipFileCreationConfirmation) {
-      this.onSubmit(this.result);
+      this.onSubmit(this.suggestedPath);
       this.close();
       return;
     }
@@ -62,7 +62,7 @@ export class SetPath extends Modal {
         event.preventDefault();
         if (event.key === "Enter") {
           try {
-            this.onSubmit(this.result);
+            this.onSubmit(this.suggestedPath);
             this.close();
           } catch (error) {
             new Notice("🔴Error: File already exists. Choose another path.");
@@ -75,9 +75,9 @@ export class SetPath extends Modal {
     new Setting(contentEl).setName("Path").addText((text) =>
       text
         .setPlaceholder("Path")
-        .setValue(this.result.toString())
+        .setValue(this.suggestedPath.toString())
         .onChange((value) => {
-          this.result = value;
+          this.suggestedPath = value;
         })
         .inputEl.setAttribute("size", "50")
     );
@@ -88,7 +88,7 @@ export class SetPath extends Modal {
         .setCta()
         .onClick(async () => {
           try {
-            this.onSubmit(this.result);
+            this.onSubmit(this.suggestedPath);
             this.close();
           } catch (error) {
             new Notice("🔴Error: File already exists. Choose another path.");
