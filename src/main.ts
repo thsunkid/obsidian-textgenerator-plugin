@@ -338,10 +338,10 @@ export default class TextGeneratorPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
-  updateStatusBar(text: string, processing = false) {
-    let text2 = "";
-    if (text.length > 0) {
-      text2 = `: ${text}`;
+  updateStatusBar(text: string, processing = false, finished = false) {
+    let text2 = `Processing...\n${text}`;
+    if (text.length > 0 && finished) {
+      text2 = `${text}`;
     }
     if (this.settings.showStatusBar) {
       this.textGeneratorIconItem.innerHTML = "";
@@ -356,7 +356,9 @@ export default class TextGeneratorPlugin extends Plugin {
         this.textGeneratorIconItem.append(span);
         this.textGeneratorIconItem.title = "Generating Text...";
         if (this.notice) this.notice.hide();
-        this.notice = new Notice(`Processing...\n${text}`, 100000);
+        if (!finished) {
+          this.notice = new Notice(text2, 100000);
+        }
       } else {
         const icon = getIcon("bot");
         if (icon) this.textGeneratorIconItem.append(icon);

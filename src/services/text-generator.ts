@@ -11,6 +11,7 @@ import {
   openFile,
   removeYAML,
   removeExtensionFromName,
+  convertJsonToTable,
 } from "../utils";
 import safeAwait from "safe-await";
 import debug from "debug";
@@ -100,7 +101,8 @@ export default class TextGenerator extends RequestHandler {
           props.params,
           props.templatePath,
           context,
-          props.insertMode
+          props.insertMode,
+          props.filePath
         );
         break;
 
@@ -394,7 +396,8 @@ export default class TextGenerator extends RequestHandler {
     params: Partial<TextGeneratorSettings>,
     templatePath: string,
     context: InputContext,
-    insertMode = false
+    insertMode = false,
+    filePath?: string
   ) {
     logger("createToFile");
     const [errortext, text] = await safeAwait(
@@ -413,11 +416,19 @@ export default class TextGenerator extends RequestHandler {
     }
 
     const title = this.plugin.app.workspace.activeLeaf?.getDisplayText();
-    const newFileName = title + "-" + makeId(3) + ".md";
+    const newFileName =
+      (title?.startsWith("[A] ") ? title.replace("[A] ", "[S] ") : title) +
+      "-" +
+      makeId(3) +
+      ".md";
     const suggestedPath = this.plugin.getTextGenPath(
       outputDir ? newFileName : "/generations/" + newFileName,
       outputDir
     );
+    const formattedText = context.options?.formatAsTable
+      ? await convertJsonToTable(text, filePath, this.plugin.app)
+      : text;
+
     new SetPath(
       this.plugin.app,
       suggestedPath,
@@ -425,7 +436,9 @@ export default class TextGenerator extends RequestHandler {
         const [errorFile, file] = await safeAwait(
           createFileWithInput(
             path,
-            skipFileCreationConfirmation ? text : context.context + text,
+            skipFileCreationConfirmation
+              ? formattedText
+              : context.context + formattedText,
             this.plugin.app
           )
         );
@@ -437,7 +450,7 @@ export default class TextGenerator extends RequestHandler {
         openFile(this.plugin.app, file);
       },
       {
-        content: context.context + text,
+        content: context.context + formattedText,
         title,
       },
       skipFileCreationConfirmation
@@ -481,9 +494,13 @@ export default class TextGenerator extends RequestHandler {
                 ? `FAILED with File ${files[i]?.path}: ${text}`
                 : `Finished file ${files[i]?.path}`;
 
-              this.plugin.updateStatusBar(msg, true);
+              this.plugin.updateStatusBar(msg, true, true);
 
               const context = contexts[i];
+
+              text = context.options?.formatAsTable
+                ? convertJsonToTable(text)
+                : text;
 
               if (!context)
                 return console.error("generation failed on", { i, text });
@@ -491,12 +508,15 @@ export default class TextGenerator extends RequestHandler {
               const fileName = skipFileCreationConfirmation
                 ? files[i].path.split("/").pop()
                 : files[i].path;
+              const newFileName = fileName?.startsWith("[A] ")
+                ? fileName.replace("[A] ", "[S] ")
+                : fileName;
 
               const [errorFile, file] = await safeAwait(
                 createFileWithInput(
                   path +
                     `/${text?.startsWith("FAILED:") ? "FAILED-" : ""}` +
-                    fileName,
+                    newFileName,
                   text,
                   this.plugin.app
                 )

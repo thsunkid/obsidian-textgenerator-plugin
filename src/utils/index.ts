@@ -1,5 +1,12 @@
 /* eslint-disable no-control-regex */
-import { App, ViewState, WorkspaceLeaf, TFile } from "obsidian";
+import {
+  App,
+  ViewState,
+  WorkspaceLeaf,
+  TFile,
+  ListItemCache,
+  SectionCache,
+} from "obsidian";
 import {
   AsyncReturnType,
   FileViewMode,
@@ -8,6 +15,12 @@ import {
 } from "../types";
 import debug from "debug";
 const logger = debug("textgenerator:setModel");
+
+interface BlockUpdate {
+  offset: number;
+  blockId: string;
+  shouldInsertNewline: boolean;
+}
 
 export function makeId(length: number) {
   logger("makeId");
@@ -553,4 +566,185 @@ export function parsePrompt(prompt: string) {
     role: match[1],
     message: match[2].trim(),
   }));
+}
+
+export async function convertJsonToTable(
+  text: string,
+  filePath?: string,
+  app?: App
+): Promise<string> {
+  // Find the start of the JSON array, accounting for possible code block markers
+  let startIndex = text.indexOf("[\n");
+  if (startIndex === -1) return text;
+
+  // Check if there's a code block marker before the JSON array
+  const possibleMarkerStart = text.lastIndexOf("```", startIndex);
+  const nextNewlineAfterMarker =
+    possibleMarkerStart !== -1 ? text.indexOf("\n", possibleMarkerStart) : -1;
+
+  // Verify if the marker is actually for this JSON array
+  if (
+    possibleMarkerStart !== -1 &&
+    nextNewlineAfterMarker !== -1 &&
+    nextNewlineAfterMarker < startIndex
+  ) {
+    // Adjust startIndex to skip the marker
+    startIndex = nextNewlineAfterMarker + 1;
+  }
+
+  // Find the end of the JSON array
+  const endIndex = text.indexOf("\n]", startIndex);
+  if (endIndex === -1) return text;
+
+  // Find possible closing marker
+  const possibleMarkerEnd = text.indexOf("```", endIndex);
+  const prevNewlineBeforeEndMarker =
+    possibleMarkerEnd !== -1 ? text.lastIndexOf("\n", possibleMarkerEnd) : -1;
+
+  // Determine the actual end position based on markers
+  const actualEndIndex =
+    prevNewlineBeforeEndMarker !== -1 && prevNewlineBeforeEndMarker > endIndex
+      ? prevNewlineBeforeEndMarker
+      : endIndex + 2;
+
+  // Extract the JSON string (including the closing bracket)
+  const jsonStr = text.substring(startIndex, endIndex + 2);
+
+  try {
+    let jsonData = JSON.parse(jsonStr);
+    if (!Array.isArray(jsonData) || jsonData.length === 0) return text;
+
+    // Update examples with block citations
+    if (filePath && app) {
+      jsonData = await updateExamplesWithBlockCitations(
+        jsonData,
+        filePath,
+        app
+      );
+    }
+
+    // Create table header
+    const headers = Object.keys(jsonData[0] as any);
+    let table = `| ${headers.join(" | ")} |\n| ${headers.map(() => "---").join(" | ")} |\n`;
+
+    // Create table rows
+    jsonData.forEach((item: any) => {
+      const row = headers.map((header: any) => {
+        let cell = item[header] || "";
+        cell = cell.toString().replace(/\|/g, "\\|").replace(/\n/g, "<br>");
+        return cell;
+      });
+      table += `| ${row.join(" | ")} |\n`;
+    });
+
+    // Replace the JSON part with the table, including markers if they existed
+    const replaceStart =
+      possibleMarkerStart !== -1 ? possibleMarkerStart : startIndex;
+    const replaceEnd =
+      possibleMarkerEnd !== -1 ? possibleMarkerEnd + 3 : actualEndIndex;
+
+    return text.substring(0, replaceStart) + table + text.substring(replaceEnd);
+  } catch (error) {
+    console.error("Error converting JSON to table:", error);
+    return text;
+  }
+}
+
+function generateId(): string {
+  // Source: https://github.com/mgmeyers/obsidian-copy-block-link/blob/main/main.ts
+  return Math.random().toString(36).substr(2, 6);
+}
+
+function shouldInsertAfter(block: ListItemCache | SectionCache) {
+  // Source: https://github.com/mgmeyers/obsidian-copy-block-link/blob/main/main.ts
+  if ((block as any).type) {
+    return [
+      "blockquote",
+      "code",
+      "table",
+      "comment",
+      "footnoteDefinition",
+    ].includes((block as SectionCache).type);
+  }
+}
+
+async function updateExamplesWithBlockCitations(
+  jsonData: any[],
+  filePath: string,
+  app: App
+) {
+  const file = app.vault.getAbstractFileByPath(filePath);
+  if (!(file instanceof TFile)) return jsonData;
+
+  const content = await app.vault.read(file);
+  const fileCache = app.metadataCache.getFileCache(file);
+  const sections = (fileCache?.sections || []).filter(
+    (section) => section.type === "paragraph"
+  );
+  // Collect all needed updates first
+  const updates: BlockUpdate[] = [];
+  const updatedExamples = new Map<number, string>(); // index -> blockEmbed
+
+  for (const item of jsonData) {
+    const llmCitedText = item.example;
+
+    // Find the section that contains our paragraph
+    const targetSection = sections.find((section) => {
+      const sectionContent = content.slice(
+        section.position.start.offset,
+        section.position.end.offset
+      );
+      return sectionContent.includes(llmCitedText.trim());
+    });
+
+    if (!targetSection) {
+      console.log(`Could not find matching section for: '${llmCitedText}'`);
+      continue;
+    }
+
+    let blockId = targetSection?.id;
+    if (!blockId) {
+      // Create new block ID and add it to the file
+      blockId = generateId();
+      updates.push({
+        offset: targetSection.position.end.offset,
+        blockId,
+        shouldInsertNewline: shouldInsertAfter(targetSection) || false,
+      });
+
+
+    // Generate the block embed link
+    item.example = `!${app.fileManager.generateMarkdownLink(
+      file,
+      "",
+      "#^" + blockId
+    )}`;
+  }
+
+  // Sort updates from end to start to maintain position integrity
+  updates.sort((a, b) => b.offset - a.offset);
+
+  // Apply all updates at once
+  let newContent = content;
+  for (const update of updates) {
+    const spacer = update.shouldInsertNewline ? "\n\n" : " ";
+    const blockMark = `${spacer}^${update.blockId}`;
+
+    newContent =
+      newContent.slice(0, update.offset) +
+      blockMark +
+      newContent.slice(update.offset);
+  }
+
+  // Only modify file if there were any updates
+  if (updates.length > 0) {
+    await app.vault.modify(file, newContent);
+  }
+
+  // Update the jsonData with block embeds
+  updatedExamples.forEach((blockEmbed, index) => {
+    jsonData[index].example = blockEmbed;
+  });
+
+  return jsonData;
 }

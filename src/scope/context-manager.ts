@@ -104,6 +104,7 @@ export interface AvailableContext {
   viewPreviewTime?: number;
   outputDir?: string;
   skipFileCreationConfirmation?: boolean;
+  formatAsTable?: boolean;
 }
 
 interface TableRow {
