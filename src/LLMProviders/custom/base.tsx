@@ -277,6 +277,10 @@ export default class CustomProvider
           messages,
         };
 
+        if (!handlebarData.custom_body?.debugMode) {
+          handlebarData.debugMode = false;
+        }
+
         const res = await this.request({
           method: handlebarData.method,
           url: await Handlebars.compile(

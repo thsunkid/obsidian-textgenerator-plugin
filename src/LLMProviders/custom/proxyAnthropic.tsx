@@ -24,7 +24,7 @@ const default_values = {
      max_tokens: {{max_tokens}},                                                                                                                                                                                                                                                                          
      timeout: {{timeout}},                                                                                                                                                                                                                                                                                
      stream: {{stream}},
-     streamable: {{streamable}}                                                                                                                                                                                                                                                                                   
+     debug: {{debugMode}}                                                                                                                                                                                                                                                                                   
 }`,
   sanatization_streaming: `// catch error
 if (res.status >= 300) {
