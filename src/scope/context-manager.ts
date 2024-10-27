@@ -37,6 +37,8 @@ import { convertArrayBufferToBase64Link } from "#/LLMProviders/utils";
 
 import mime from "mime-types";
 import { InputOptions } from "#/lib/models";
+import ContentManagerCls from "./content-manager";
+import safeAwait from "safe-await";
 
 interface CodeBlock {
   type: string;
@@ -244,50 +246,40 @@ export default class ContextManager {
   ) {
     const contexts: (InputContext | undefined)[] = [];
 
-    for (const file of files) {
-      const fileMeta = this.getMetaData(file.path); // active document
+    const notice = new Notice("Extracting context from files...", 0);
+    notice.noticeEl.addClass("is-loading");
 
-      const options = merge(
-        {},
-        this.getFrontmatter(this.getMetaData(templatePath)),
-        this.getFrontmatter(fileMeta),
-        addtionalOpts,
-        {
-          tg_selection: removeYAML(
-            await this.plugin.app.vault.cachedRead(file)
-          ),
+    try {
+      for (const file of files) {
+        // Update notice with current file
+        notice.setMessage(`Reading ${file.path}...`);
+
+        const leaf = this.app.workspace.getLeaf();
+        await leaf.openFile(file);
+        const view = leaf.view;
+        const editor = ContentManagerCls.compile(view, this.plugin, {
+          templatePath,
+        });
+
+        const [errorContext, context] = await safeAwait(
+          this.plugin.contextManager.getContext({
+            filePath: file.path,
+            editor: editor,
+            insertMetadata: true,
+            templatePath,
+            addtionalOpts: {},
+          })
+        );
+
+        if (errorContext) {
+          logger("tempalteToModal error", errorContext);
+          console.log("Skipping file", file.path, " with error", errorContext);
+          continue;
         }
-      );
-
-      const { context, inputTemplate, outputTemplate } =
-        await this.templateFromPath(templatePath, options);
-
-      logger("Context Template", { context, options });
-
-      contexts.push({
-        context,
-        options,
-        template: { inputTemplate, outputTemplate },
-        templatePath,
-      } as InputContext);
-
-      //   app.workspace.openLinkText("", filePath, true);
-      //   contexts.push(
-      //     app.workspace.activeEditor?.editor
-      //       ? await this.getContext(
-      //           app.workspace.activeEditor?.editor,
-      //           insertMetadata,
-      //           templatePath,
-      //           {
-      //             ...addtionalOpts,
-      //             selection: app.workspace.activeEditor.editor.getValue(),
-      //           }
-      //         )
-      //       : undefined
-      //   );
-
-      //   console.log({ contexts });
-      //   app.workspace.getLeaf().detach();
+        contexts.push(context as InputContext);
+      }
+    } finally {
+      notice.hide(); // Ensure loading notice is removed even if error occurs
     }
 
     return contexts;

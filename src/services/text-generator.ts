@@ -405,6 +405,7 @@ export default class TextGenerator extends RequestHandler {
     );
     const skipFileCreationConfirmation =
       context.options?.skipFileCreationConfirmation;
+    const outputDir = context.options?.outputDir;
 
     if (errortext) {
       logger("tempalteToModal error", errortext);
@@ -414,15 +415,19 @@ export default class TextGenerator extends RequestHandler {
     const title = this.plugin.app.workspace.activeLeaf?.getDisplayText();
     const newFileName = title + "-" + makeId(3) + ".md";
     const suggestedPath = this.plugin.getTextGenPath(
-      context.options?.outputDir ? newFileName : "/generations/" + newFileName,
-      context.options?.outputDir
+      outputDir ? newFileName : "/generations/" + newFileName,
+      outputDir
     );
     new SetPath(
       this.plugin.app,
       suggestedPath,
       async (path: string) => {
         const [errorFile, file] = await safeAwait(
-          createFileWithInput(path, context.context + text, this.plugin.app)
+          createFileWithInput(
+            path,
+            skipFileCreationConfirmation ? text : context.context + text,
+            this.plugin.app
+          )
         );
         if (errorFile) {
           logger("tempalteToModal error", errorFile);
@@ -432,7 +437,7 @@ export default class TextGenerator extends RequestHandler {
         openFile(this.plugin.app, file);
       },
       {
-        content: skipFileCreationConfirmation ? text : context.context + text,
+        content: context.context + text,
         title,
       },
       skipFileCreationConfirmation
@@ -448,8 +453,13 @@ export default class TextGenerator extends RequestHandler {
     insertMode = false
   ) {
     logger("createToFile");
+    const skipFileCreationConfirmation =
+      contexts[0].options?.skipFileCreationConfirmation;
+    const outputDir = contexts[0].options?.outputDir;
+
     const suggestedPath = this.plugin.getTextGenPath(
-      `/generations/${makeId(4)}`
+      outputDir ? "" : `/generations/${makeId(4)}`,
+      outputDir
     );
 
     new SetPath(
@@ -478,11 +488,15 @@ export default class TextGenerator extends RequestHandler {
               if (!context)
                 return console.error("generation failed on", { i, text });
 
+              const fileName = skipFileCreationConfirmation
+                ? files[i].path.split("/").pop()
+                : files[i].path;
+
               const [errorFile, file] = await safeAwait(
                 createFileWithInput(
                   path +
                     `/${text?.startsWith("FAILED:") ? "FAILED-" : ""}` +
-                    files[i].path,
+                    fileName,
                   text,
                   this.plugin.app
                 )
@@ -513,15 +527,17 @@ export default class TextGenerator extends RequestHandler {
         }
 
         await new Promise((s) => setTimeout(s, 500));
-        this.plugin.app.workspace.openLinkText(
-          "",
-          `${path}/${contexts[0].options?.templatePath}`,
-          true
-        );
+        if (!skipFileCreationConfirmation)
+          this.plugin.app.workspace.openLinkText(
+            "",
+            `${path}/${contexts[0].options?.templatePath}`,
+            true
+          );
       },
       {
         title: `${files.length} files`,
-      }
+      },
+      skipFileCreationConfirmation
     ).open();
     logger("createToFile end");
   }

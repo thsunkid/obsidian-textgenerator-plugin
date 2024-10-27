@@ -55,7 +55,22 @@ export async function createFileWithInput(
   if (!(await app.vault.adapter.exists(dirName)))
     await createFolder(dirName, app);
 
-  return await app.vault.create(filePath, fileContent);
+  // Sanitize the file name. Can't contain ":"
+  let sanitizedFilePath = filePath.replace(/[:]/g, "_");
+
+  // Check if file already exists
+  if (await app.vault.adapter.exists(sanitizedFilePath)) {
+    // If it does, add 4 random characters to the filename
+    const fileExtension = sanitizedFilePath.split(".").pop();
+    const fileNameWithoutExtension = sanitizedFilePath.slice(
+      0,
+      -(fileExtension?.length ?? 0) - 1
+    );
+    sanitizedFilePath = `${fileNameWithoutExtension}-${makeId(4)}.${fileExtension}`;
+    logger("File already exists. Created new filename:", sanitizedFilePath);
+  }
+
+  return await app.vault.create(sanitizedFilePath, fileContent);
 }
 
 /*
@@ -505,8 +520,11 @@ export const createTempFileForPreview = async (
   const tempFileName = `tmp/Complied-Prompt-Result-${Date.now()}.md`;
   const tempFile = await plugin.app.vault.create(tempFileName, result);
 
-  // Open the temporary file
-  await plugin.app.workspace.openLinkText(tempFile.path, "", true);
+  // Open the temporary file.
+  // Don't make it active since it will change the active leaf metadata later
+  await plugin.app.workspace.openLinkText(tempFile.path, "", true, {
+    active: false,
+  });
 
   // Set a timeout to remove the temporary file after 10 seconds
   setTimeout(async () => {
