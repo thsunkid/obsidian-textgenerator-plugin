@@ -1113,7 +1113,7 @@ export default class ContextManager {
     // Create a copy of the original content
     let updatedContent = content;
     if (addCitationAtEnd && children.some((child) => child.isMentionedDoc)) {
-      updatedContent = updatedContent + "\n***\nMentioned citation content:";
+      updatedContent = updatedContent + "\n***\nCitation content:";
     }
 
     // Iterate through sorted children (from end to front)
@@ -1131,37 +1131,27 @@ export default class ContextManager {
           .slice(1)
           .join("\n");
 
-        const originalCitationString = updatedContent.slice(
+        const citation = updatedContent.slice(
           child.position.start.offset,
           child.position.end.offset
-        );
-        const citationPrefix = "[C] ";
-        const formattedCitationString = originalCitationString.replaceAll(
-          citationPrefix,
-          ""
         );
 
         // @NOTE: Do not find and replace all.
         // That will change the position of the next citation that we process
         updatedContent =
           updatedContent.slice(0, child.position.start.offset) +
-          formattedCitationString +
+          citation +
           updatedContent.slice(child.position.end.offset);
 
         if (addCitationAtEnd) {
           // add the child's content to the end of updatedContent
-          updatedContent = `${updatedContent}\n\n${formattedCitationString}:\n${contentWithoutTitle}`;
+          updatedContent = `${updatedContent}\n\n${citation}:\n${contentWithoutTitle}`;
         } else {
           // add the child's content to the end of position.end.offset
           updatedContent =
-            updatedContent.slice(
-              0,
-              child.position.end.offset - citationPrefix.length
-            ) +
+            updatedContent.slice(0, child.position.end.offset) +
             `(Citation content: ${contentWithoutTitle})` +
-            updatedContent.slice(
-              child.position.end.offset - citationPrefix.length
-            );
+            updatedContent.slice(child.position.end.offset);
         }
       }
     }

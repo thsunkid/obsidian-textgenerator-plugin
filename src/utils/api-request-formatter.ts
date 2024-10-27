@@ -6,6 +6,7 @@ import debug from "debug";
 import { transformStringsToChatFormat, parsePrompt } from ".";
 import { LLMConfig } from "../LLMProviders/interface";
 import { AI_MODELS } from "#/constants";
+import { createTempFileForPreview } from "#/utils";
 const logger = debug("textgenerator:ReqFormatter");
 export default class ReqFormatter {
   plugin: TextGeneratorPlugin;
@@ -37,7 +38,13 @@ export default class ReqFormatter {
   }
 
   async getRequestParameters(
-    _params: Partial<TextGeneratorSettings & { prompt: string }>,
+    _params: Partial<
+      TextGeneratorSettings & {
+        prompt: string;
+        debugMode?: boolean;
+        viewPreviewTime?: number;
+      }
+    >,
     insertMetadata: boolean,
     templatePath = "",
     additionnalParams: {
@@ -63,6 +70,13 @@ export default class ReqFormatter {
       ...this.getFrontmatter(templatePath, insertMetadata),
       ..._params,
     };
+
+    if (params?.debugMode)
+      await createTempFileForPreview(
+        this.plugin,
+        params.prompt,
+        params.viewPreviewTime || 30
+      );
 
     if (
       !this.plugin.textGenerator.LLMProvider ||

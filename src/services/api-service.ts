@@ -248,13 +248,6 @@ export default class RequestHandler {
           : context.context
       ) as string;
 
-      if (options?.debugMode)
-        await createTempFileForPreview(
-          this.plugin,
-          prompt,
-          options?.viewPreviewTime || 30
-        );
-
       const { reqParams, bodyParams, provider, allParams } =
         await this.reqFormatter.getRequestParameters(
           {
@@ -443,7 +436,7 @@ export default class RequestHandler {
               },
             };
           }),
-          {},
+          batches[0].provider?.providerOptions || {},
           onOneFinishs
         );
     } catch (err: any) {
@@ -490,13 +483,6 @@ export default class RequestHandler {
           ? await template.inputTemplate(options)
           : context.context
       ) as string;
-
-      if (options?.debugMode)
-        await createTempFileForPreview(
-          this.plugin,
-          prompt,
-          options?.viewPreviewTime || 30
-        );
 
       const { reqParams, bodyParams, provider, allParams } =
         await this.reqFormatter.getRequestParameters(
