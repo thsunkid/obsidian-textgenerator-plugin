@@ -512,8 +512,14 @@ export default class ContextManager {
                 .slice(1)
                 .join(metadataSeparatorString)
             : formattedContentWithRef;
+        // Remove block citations (block IDs) from the content
+        const formattedContentWithoutBlockCitations =
+          formattedContentWithRefWithoutMetadata.replace(
+            /(\s|^)\^[a-z0-9]{6}(?=\s|$)/g,
+            ""
+          );
 
-        context["contentWithRef"] = formattedContentWithRefWithoutMetadata;
+        context["contentWithRef"] = formattedContentWithoutBlockCitations;
       }
 
       if (vars["highlights"])
