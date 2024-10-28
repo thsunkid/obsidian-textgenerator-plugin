@@ -71,24 +71,27 @@ export default class ReqFormatter {
       ..._params,
     };
 
-    if (params?.debugMode)
+    if (params?.debugMode && params.viewPreviewTime)
       await createTempFileForPreview(
         this.plugin,
         params.prompt,
         params.viewPreviewTime || 30
       );
 
+    params.model = params.model?.toLowerCase();
+
     if (
       !this.plugin.textGenerator.LLMProvider ||
       frontmatter.config?.provider !== this.plugin.textGenerator.LLMProvider.id
     )
       // load the provider
-      await this.plugin.textGenerator.loadllm(frontmatter.config?.provider);
+      // if disagree, load the provider based on the model name
+      await this.plugin.textGenerator.loadllm(
+        AI_MODELS[params.model]?.llm[0] || frontmatter.config?.provider
+      );
 
     if (!this.plugin.textGenerator.LLMProvider)
       throw "LLM Provider not intialized";
-
-    params.model = params.model?.toLowerCase();
 
     if (
       params.includeAttachmentsInRequest ??

@@ -499,7 +499,11 @@ export default class TextGenerator extends RequestHandler {
               const context = contexts[i];
 
               text = context.options?.formatAsTable
-                ? convertJsonToTable(text)
+                ? await convertJsonToTable(
+                    text,
+                    files[i]?.path,
+                    this.plugin.app
+                  )
                 : text;
 
               if (!context)
