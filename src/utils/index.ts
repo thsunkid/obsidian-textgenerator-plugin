@@ -686,7 +686,8 @@ async function updateExamplesWithBlockCitations(
   const updatedExamples = new Map<number, string>(); // index -> blockEmbed
 
   for (const item of jsonData) {
-    const llmCitedText = item.example;
+    // Remove trailing period from the example text
+    const llmCitedText = item.example.trim().replace(/\.$/, "");
 
     // Find the section that contains our paragraph
     const targetSection = sections.find((section) => {
@@ -694,7 +695,7 @@ async function updateExamplesWithBlockCitations(
         section.position.start.offset,
         section.position.end.offset
       );
-      return sectionContent.includes(llmCitedText.trim());
+      return sectionContent.includes(llmCitedText);
     });
 
     if (!targetSection) {
@@ -711,8 +712,7 @@ async function updateExamplesWithBlockCitations(
         blockId,
         shouldInsertNewline: shouldInsertAfter(targetSection) || false,
       });
-
-
+    }
     // Generate the block embed link
     item.example = `!${app.fileManager.generateMarkdownLink(
       file,
@@ -720,7 +720,6 @@ async function updateExamplesWithBlockCitations(
       "#^" + blockId
     )}`;
   }
-
   // Sort updates from end to start to maintain position integrity
   updates.sort((a, b) => b.offset - a.offset);
 
@@ -740,11 +739,6 @@ async function updateExamplesWithBlockCitations(
   if (updates.length > 0) {
     await app.vault.modify(file, newContent);
   }
-
-  // Update the jsonData with block embeds
-  updatedExamples.forEach((blockEmbed, index) => {
-    jsonData[index].example = blockEmbed;
-  });
 
   return jsonData;
 }
